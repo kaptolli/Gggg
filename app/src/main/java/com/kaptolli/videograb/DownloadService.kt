@@ -131,7 +131,12 @@ class DownloadService : Service() {
             }
             notifyDone("Скачано: " + names.joinToString(", "), lastUri)
         } catch (t: Throwable) {
-            notifyDone("Ошибка: " + (t.message ?: t.toString()), null)
+            val lines = (t.message ?: t.toString())
+                .lines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("WARNING") && !it.startsWith("DEPRECATION") }
+            val reason = if (lines.isEmpty()) "неизвестная ошибка" else lines.takeLast(3).joinToString(" ")
+            notifyDone("Ошибка: " + reason.take(300), null)
         }
     }
 

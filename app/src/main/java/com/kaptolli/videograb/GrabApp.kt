@@ -4,13 +4,18 @@ import android.app.Application
 import android.content.Context
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * yt-dlp + python + ffmpeg распаковываются при первом запуске (несколько секунд),
- * всё остальное в приложении ждёт [ready].
+ * остальное в приложении ждёт [ready].
  *
- * yt-dlp в библиотеке — сборка с её релиза, поэтому раз в сутки тянем свежий бинарь
- * с GitHub: площадки ломают старые версии постоянно (и yt-dlp сам ворчит, что старше 90 дней).
+ * yt-dlp в библиотеке — сборка с её релиза, а площадки ломают старые версии за пару месяцев.
+ * Поэтому сами тянем свежий бинарь НАПРЯМУЮ из релиза на GitHub (без api.github.com —
+ * он лимитит по IP) и подменяем файл в каталоге библиотеки.
  */
 class GrabApp : Application() {
 
@@ -32,7 +37,11 @@ class GrabApp : Application() {
     companion object {
         private const val PREFS = "grab"
         private const val KEY_LAST_UPDATE = "last_ytdlp_update"
+        private const val KEY_VERSION = "ytdlp_version"
         private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /** прямая ссылка на последний релиз — редирект даёт тег версии, никакого API */
+        private const val DLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 
         @Volatile
         var ready: Boolean = false
@@ -42,7 +51,7 @@ class GrabApp : Application() {
         var error: String? = null
             private set
 
-        /** версия yt-dlp (тег релиза), null пока ни разу не обновлялись */
+        /** версия подменённого yt-dlp, null — ещё ни разу не обновляли */
         @Volatile
         var ytdlpVersion: String? = null
             private set
@@ -56,39 +65,56 @@ class GrabApp : Application() {
         }
 
         fun refreshVersion(context: Context) {
-            ytdlpVersion = try {
-                YoutubeDL.version(context)
-            } catch (t: Throwable) {
-                null
-            }
+            ytdlpVersion = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_VERSION, null)
         }
 
-        /** раз в сутки, тихо, без права на ошибку: нет сети — попробуем в следующий запуск */
+        /** раз в сутки, тихо, без права на ошибку */
         private fun maybeAutoUpdate(context: Context) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             if (System.currentTimeMillis() - prefs.getLong(KEY_LAST_UPDATE, 0L) < DAY_MS) return
-            try {
-                YoutubeDL.updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
-                refreshVersion(context)
-                prefs.edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
-            } catch (t: Throwable) {
-                // молча: пригодится позже, кнопкой «Обновить»
-            }
+            prefs.edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
+            updateNow(context)
         }
 
-        /** ручное обновление, возвращает текст для тоста */
+        /** @return текст для тоста */
         fun updateNow(context: Context): String {
             return try {
-                val status = YoutubeDL.updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
-                refreshVersion(context)
-                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
-                val v = ytdlpVersion ?: "?"
-                when (status) {
-                    YoutubeDL.UpdateStatus.DONE -> "yt-dlp обновлён: $v"
-                    YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "yt-dlp уже свежий: $v"
-                    else -> "yt-dlp: $v"
+                val dir = File(context.noBackupFilesDir, YoutubeDL.baseName + "/" + YoutubeDL.ytdlpDirName)
+                dir.mkdirs()
+                val target = File(dir, YoutubeDL.ytdlpBin)
+                val tmp = File(dir, "yt-dlp.new")
+
+                val conn = (URL(DLP_URL).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = true
+                    connectTimeout = 20_000
+                    readTimeout = 180_000
+                    setRequestProperty("User-Agent", "VideoGrab")
                 }
+                conn.connect()
+                val finalUrl = conn.url.toString()
+                conn.inputStream.use { input -> FileOutputStream(tmp).use { input.copyTo(it) } }
+                conn.disconnect()
+
+                if (tmp.length() < 500_000L) {
+                    tmp.delete()
+                    return "не вышло: скачался мусор (" + tmp.length() + " байт)"
+                }
+                if (target.exists()) target.delete()
+                if (!tmp.renameTo(target)) {
+                    tmp.copyTo(target, overwrite = true)
+                    tmp.delete()
+                }
+                target.setReadable(true)
+                target.setExecutable(true)
+
+                val tag = Regex("/download/([^/]+)/yt-dlp").find(finalUrl)?.groupValues?.get(1) ?: "?"
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putLong(KEY_LAST_UPDATE, System.currentTimeMillis())
+                    .putString(KEY_VERSION, tag)
+                    .apply()
+                ytdlpVersion = tag
+                "yt-dlp обновлён: $tag"
             } catch (t: Throwable) {
                 "не вышло обновить: " + (t.message ?: t.toString())
             }

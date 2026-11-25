@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- поиск
 
-    private fun fetch(raw: String) {
+    private fun fetch(raw: String, auto: Boolean = false) {
         val url = firstUrl(raw) ?: raw.trim().takeIf { it.startsWith("http") }
         if (url.isNullOrBlank()) {
             toast("Нужна ссылка http(s)://...")
@@ -103,7 +103,9 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                render(fetchInfo(url))
+                val info = fetchInfo(url)
+                render(info)
+                if (auto) autoDownload(info)
             } catch (t: Throwable) {
                 toast("Не вышло: " + (t.message ?: t.toString()))
             } finally {
@@ -209,6 +211,15 @@ class MainActivity : AppCompatActivity() {
         return rows
     }
 
+    /** пришло из «Поделиться» — сразу тянем 1080p mp4, без лишних тапов */
+    private fun autoDownload(info: VideoInfo) {
+        if (hasNoVideo(info)) {
+            toast("Тут нет видео — качать нечего")
+            return
+        }
+        startDownload(FormatRow("1080p MP4 · авто", "поделились ссылкой", SEL_MP4_1080, false, null))
+    }
+
     private fun hasNoVideo(info: VideoInfo): Boolean {
         val f = info.formats ?: return false
         return f.isEmpty() || f.none { it.ext != null && VIDEO_EXT.contains(extOf(it)) }
@@ -287,12 +298,23 @@ class MainActivity : AppCompatActivity() {
 
     // --------------------------------------------------------------- утиль
 
+    /** ACTION_SEND / ACTION_VIEW: вытащить ссылку и стартовать загрузку сразу */
     private fun handleShare(intent: Intent?) {
-        if (intent == null || intent.action != Intent.ACTION_SEND) return
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-        val url = firstUrl(text) ?: return
+        if (intent == null) return
+        val action = intent.action
+        if (action != Intent.ACTION_SEND && action != Intent.ACTION_VIEW) return
+        val raw = intent.getStringExtra(Intent.EXTRA_TEXT)
+            ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
+            ?: intent.dataString
+            ?: return
+        val url = firstUrl(raw) ?: return
+        // снять интент, чтобы поворот экрана не запускал скачивание второй раз
+        intent.removeExtra(Intent.EXTRA_TEXT)
+        intent.removeExtra(Intent.EXTRA_SUBJECT)
+        intent.setData(null)
         b.etUrl.setText(url)
-        fetch(url)
+        toast("Шарю ссылку — качаю 1080p MP4")
+        fetch(url, auto = true)
     }
 
     private fun firstUrl(text: String): String? {

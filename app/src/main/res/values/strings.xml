@@ -9,4 +9,5 @@
     <string name="preview">Превью</string>
     <string name="stop">Остановить</string>
     <string name="download">Скачать</string>
+    <string name="update_ytdlp">Обновить</string>
 </resources>

@@ -62,6 +62,8 @@ class MainActivity : AppCompatActivity() {
         buildPresets()
         b.btnFetch.setOnClickListener { fetch(b.etUrl.text.toString()) }
         b.btnCancel.setOnClickListener { cancelDownload() }
+        b.btnUpdate.setOnClickListener { updateYtdlp() }
+        updateVersionLabel()
         askNotificationPermission()
 
         lifecycleScope.launch {
@@ -329,6 +331,20 @@ class MainActivity : AppCompatActivity() {
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 71)
         }
+    }
+
+    private fun updateYtdlp() {
+        toast("Проверяю yt-dlp...")
+        lifecycleScope.launch {
+            val msg = withContext(Dispatchers.IO) { GrabApp.updateNow(this@MainActivity) }
+            updateVersionLabel()
+            toast(msg)
+        }
+    }
+
+    private fun updateVersionLabel() {
+        val v = GrabApp.ytdlpVersion
+        b.tvYtdlp.text = if (v.isNullOrBlank()) "yt-dlp: из сборки" else "yt-dlp " + v
     }
 
     private fun toast(msg: String) {

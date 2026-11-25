@@ -1,0 +1,1222 @@
+name: build-apk
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare sources
+        run: |
+          set -e
+          mkdir -p "$(dirname '.gitignore')"
+          cat > '.gitignore' <<'__SRC__'
+          *.iml
+          .gradle
+          /local.properties
+          /.idea
+          .DS_Store
+          /build
+          /captures
+          .externalNativeBuild
+          .cxx
+          app/build
+          __SRC__
+          mkdir -p "$(dirname 'README.md')"
+          cat > 'README.md' <<'__SRC__'
+          # VideoGrab (репозиторий Gggg)
+          
+          Android-приложение: кидаешь ссылку на видео с любого сайта — оно находит видео, показывает превью
+          и качает в 1080p или в любом формате, который отдал сайт.
+          
+          ## Что внутри
+          - Под капотом **yt-dlp** (библиотека `youtubedl-android 0.18.1` + python3 + ffmpeg), то есть работают
+            тысячи сайтов: YouTube, Rutube, VK, TikTok, Twitter/X, Reddit, Vimeo, Dailymotion, m3u8/mp4-прямые ссылки.
+          - **Сверху самые популярные форматы** (чипы): `1080p MP4`, `1080p без звука`, `720p MP4`, `480p MP4`,
+            `360p MP4`, `MP3`, `M4A`.
+          - Ниже — список форматов: только **mp4 по убыванию качества до 1080p**, внизу пара звуковых
+            дорожек. Мусор (`webp`, `mhtml`, картинки-превью) и 4K/8K в списке не показываются.
+          - Превью видео (thumbnail), название, автор, длительность.
+          - Качает foreground-сервис: прогресс в шторке, там же кнопка «Стоп».
+          - Готовый файл попадает в `/sdcard/Download/VideoGrab/` (через MediaStore, разрешения на память не нужны).
+          - Ловит «Поделиться» из браузера или YouTube — ссылка подставляется автоматически.
+          
+          ## Сборка
+          Локальный тулчейн не нужен, APK собирает GitHub Actions (`.github/workflows/build.yml`):
+          
+          1. Пуш в `main` **или** вкладка Actions → workflow `build-apk` → `Run workflow`.
+          2. Через 3–6 минут APK лежит:
+             - в **Releases** (самый простой путь с телефона — asset `app-debug.apk`),
+             - и в **Artifacts** рана (`VideoGrab-debug-apk`).
+          
+          Первый прогон ещё и «материализует» исходники в репозиторий (шаг `Commit sources back`), так что
+          дальше править код можно прямо на GitHub.
+          
+          Ручная сборка (если есть Android Studio / gradle 8.7 + JDK 17 + Android SDK 34):
+          ```
+          gradle assembleDebug
+          # APK: app/build/outputs/apk/debug/app-debug.apk
+          ```
+          
+          ## Установка на телефон
+          Скачать `app-debug.apk` → открыть → разрешить установку из этого источника.
+          Первый запуск: 5–15 секунд распаковываются python, ffmpeg и yt-dlp, потом можно кидать ссылку.
+          
+          ## «Ключ» для правки репозитория
+          Токен GitHub нельзя сгенерировать за тебя — он выдаётся только в твоём аккаунте:
+          GitHub → аватар → Settings → Developer settings → Personal access tokens → **Tokens (classic)** →
+          Generate new token (classic) → scopes `repo` + `workflow` → Generate → скопировать `ghp_...`.
+          
+          Использование:
+          ```
+          git clone https://kaptolli:ТОКЕН@github.com/kaptolli/Gggg.git
+          cd Gggg
+          git add -A && git commit -m "update" && git push
+          ```
+          Или один раз запомнить креды: `git remote set-url origin https://github.com/kaptolli/Gggg.git`
+          (при пуше логин `kaptolli`, пароль — токен). Токен = пароль ко всему аккаунту: не кидай его в чаты,
+          не коммить в код; если утёк — сразу Revoke на той же странице.
+          
+          ## Только для личного использования
+          Качаешь то, что имеешь право качать; YouTube и прочие площадки такое не любят.
+          __SRC__
+          mkdir -p "$(dirname 'app/build.gradle')"
+          cat > 'app/build.gradle' <<'__SRC__'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          
+          android {
+              namespace 'com.kaptolli.videograb'
+              compileSdk 34
+          
+              defaultConfig {
+                  applicationId "com.kaptolli.videograb"
+                  minSdk 29
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+                  // yt-dlp / python / ffmpeg are bundled as native libs - one ABI keeps the apk sane
+                  ndk {
+                      abiFilters 'arm64-v8a', 'armeabi-v7a'
+                  }
+              }
+          
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          
+              buildFeatures {
+                  viewBinding true
+              }
+          
+              // youtubedl-android unpacks its .so payload at runtime
+              packagingOptions {
+                  jniLibs {
+                      useLegacyPackaging true
+                  }
+              }
+          }
+          
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.13.1'
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'com.google.android.material:material:1.12.0'
+              implementation 'androidx.recyclerview:recyclerview:1.3.2'
+              implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
+              implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+              implementation 'io.coil-kt:coil:2.6.0'
+          
+              // yt-dlp + python3 + ffmpeg for android (maven central)
+              implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+              implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+          }
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/AndroidManifest.xml')"
+          cat > 'app/src/main/AndroidManifest.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+          
+              <application
+                  android:name=".GrabApp"
+                  android:allowBackup="true"
+                  android:extractNativeLibs="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:requestLegacyExternalStorage="true"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.VideoGrab">
+          
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.SEND" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:mimeType="text/plain" />
+                      </intent-filter>
+                  </activity>
+          
+                  <service
+                      android:name=".DownloadService"
+                      android:exported="false"
+                      android:foregroundServiceType="dataSync" />
+              </application>
+          </manifest>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/java/com/kaptolli/videograb/DownloadService.kt')"
+          cat > 'app/src/main/java/com/kaptolli/videograb/DownloadService.kt' <<'__SRC__'
+          package com.kaptolli.videograb
+          
+          import android.app.Notification
+          import android.app.NotificationChannel
+          import android.app.NotificationManager
+          import android.app.PendingIntent
+          import android.app.Service
+          import android.content.ContentValues
+          import android.content.Intent
+          import android.content.pm.ServiceInfo
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Environment
+          import android.os.IBinder
+          import android.provider.MediaStore
+          import androidx.core.app.NotificationCompat
+          import androidx.core.app.ServiceCompat
+          import com.yausername.youtubedl_android.YoutubeDL
+          import com.yausername.youtubedl_android.YoutubeDLRequest
+          import kotlinx.coroutines.CoroutineScope
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.SupervisorJob
+          import kotlinx.coroutines.cancel
+          import kotlinx.coroutines.flow.MutableStateFlow
+          import kotlinx.coroutines.launch
+          import java.io.File
+          
+          data class DlState(val running: Boolean = false, val percent: Int = 0, val line: String = "")
+          
+          /**
+           * One download at a time. yt-dlp writes into the app's private dir (no storage permission
+           * needed at all), then the finished file is copied into Download/VideoGrab via MediaStore.
+           */
+          class DownloadService : Service() {
+          
+              private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+          
+              override fun onBind(intent: Intent?): IBinder? = null
+          
+              override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+                  val i = intent ?: run {
+                      stopSelf()
+                      return START_NOT_STICKY
+                  }
+          
+                  if (i.action == ACTION_CANCEL) {
+                      YoutubeDL.destroyProcessById(PROCESS_ID)
+                      if (!state.value.running) {
+                          state.value = DlState()
+                          stopSelf()
+                      }
+                  }
+          
+                  val url = i.getStringExtra(EXTRA_URL)
+                  if (url.isNullOrBlank()) {
+                      stopSelf()
+                      return START_NOT_STICKY
+                  }
+                  val selector = i.getStringExtra(EXTRA_SELECTOR) ?: "b"
+                  val label = i.getStringExtra(EXTRA_LABEL) ?: "видео"
+                  val audioOnly = i.getBooleanExtra(EXTRA_AUDIO_ONLY, false)
+                  val audioFormat = i.getStringExtra(EXTRA_AUDIO_FORMAT)
+          
+                  createChannel()
+                  ServiceCompat.startForeground(
+                      this, NOTIF_ID, buildNotification(label + " · 0%", "Готовлю yt-dlp…", 0, true, null), SERVICE_TYPE
+                  )
+                  state.value = DlState(true, 0, "Готовлю yt-dlp…")
+          
+                  scope.launch { runDownload(url, selector, label, audioOnly, audioFormat) }
+                  return START_NOT_STICKY
+              }
+          
+              override fun onDestroy() {
+                  scope.cancel()
+                  super.onDestroy()
+              }
+          
+              private fun runDownload(
+                  url: String,
+                  selector: String,
+                  label: String,
+                  audioOnly: Boolean,
+                  audioFormat: String?
+              ) {
+                  val base = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+                  val tmpDir = File(base, "tmp").apply { mkdirs() }
+                  val before = tmpDir.list()?.toHashSet() ?: HashSet<String>()
+          
+                  val request = YoutubeDLRequest(url)
+                  request.addOption("--no-mtime")
+                  request.addOption("--no-playlist")
+                  request.addOption("--newline")
+                  request.addOption("--retries", "5")
+                  request.addOption("-o", tmpDir.absolutePath + "/%(title).120s.%(ext)s")
+                  request.addOption("-f", selector)
+                  if (audioOnly) {
+                      request.addOption("-x")
+                      request.addOption("--audio-format", audioFormat ?: "mp3")
+                      request.addOption("--audio-quality", "0")
+                  } else {
+                      request.addOption("--merge-output-format", "mp4")
+                  }
+          
+                  val callback: (Float, Long, String) -> Unit = { p, _eta, line ->
+                      val pct = p.toInt().coerceIn(0, 100)
+                      val text = line.trim().take(140).ifBlank { "качаю…" }
+                      state.value = DlState(true, pct, text)
+                      notifyProgress(label + " · " + pct + "%", text, pct)
+                  }
+          
+                  try {
+                      YoutubeDL.execute(request, PROCESS_ID, callback)
+          
+                      val fresh = tmpDir.listFiles()?.filter {
+                          it.isFile && !before.contains(it.name) &&
+                              !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
+                      } ?: emptyList()
+          
+                      if (fresh.isEmpty()) {
+                          notifyDone("Файл не появился — сайт мог не отдать поток", null)
+                          return
+                      }
+          
+                      var lastUri: Uri? = null
+                      val names = ArrayList<String>()
+                      for (f in fresh) {
+                          names.add(f.name)
+                          publish(f)?.let { lastUri = it }
+                          f.delete()
+                      }
+                      notifyDone("Скачано: " + names.joinToString(", "), lastUri)
+                  } catch (t: Throwable) {
+                      notifyDone("Ошибка: " + (t.message ?: t.toString()), null)
+                  }
+              }
+          
+              /** копия готового файла в общий Download/VideoGrab, откуда его видят галерея и файлменеджер */
+              private fun publish(file: File): Uri? {
+                  val values = ContentValues().apply {
+                      put(MediaStore.Downloads.DISPLAY_NAME, file.name)
+                      put(MediaStore.Downloads.MIME_TYPE, mimeOf(file.name))
+                      put(MediaStore.Downloads.RELATIVE_PATH, "Download/VideoGrab")
+                      put(MediaStore.Downloads.IS_PENDING, 1)
+                  }
+                  val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                  val uri = contentResolver.insert(collection, values) ?: return null
+          
+                  val out = try {
+                      contentResolver.openOutputStream(uri)
+                  } catch (t: Throwable) {
+                      null
+                  }
+                  if (out == null) {
+                      contentResolver.delete(uri, null, null)
+                      return null
+                  }
+                  try {
+                      out.use { o -> file.inputStream().use { input -> input.copyTo(o) } }
+                  } catch (t: Throwable) {
+                      contentResolver.delete(uri, null, null)
+                      return null
+                  }
+          
+                  val done = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
+                  contentResolver.update(uri, done, null, null)
+                  return uri
+              }
+          
+              private fun mimeOf(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
+                  "mp4", "m4v" -> "video/mp4"
+                  "webm" -> "video/webm"
+                  "mkv" -> "video/x-matroska"
+                  "mov" -> "video/quicktime"
+                  "m4a" -> "audio/mp4"
+                  "mp3" -> "audio/mpeg"
+                  "opus", "ogg" -> "audio/ogg"
+                  "wav" -> "audio/wav"
+                  else -> "application/octet-stream"
+              }
+          
+              private fun createChannel() {
+                  val nm = getSystemService(NotificationManager::class.java)
+                  if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+                      nm.createNotificationChannel(
+                          NotificationChannel(CHANNEL_ID, "Загрузки", NotificationManager.IMPORTANCE_LOW).apply {
+                              setShowBadge(false)
+                          }
+                      )
+                  }
+              }
+          
+              private fun notifyProgress(title: String, text: String, percent: Int) {
+                  try {
+                      getSystemService(NotificationManager::class.java)
+                          .notify(NOTIF_ID, buildNotification(title, text, percent, true, null))
+                  } catch (t: Throwable) {
+                      // нет разрешения на уведомления — прогресс всё равно виден в активити
+                  }
+              }
+          
+              private fun notifyDone(text: String, uri: Uri?) {
+                  state.value = DlState(false, 100, text)
+                  try {
+                      getSystemService(NotificationManager::class.java)
+                          .notify(NOTIF_ID, buildNotification("VideoGrab", text, 100, false, uri))
+                  } catch (t: Throwable) {
+                  }
+                  ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+                  stopSelf()
+              }
+          
+              private fun buildNotification(
+                  title: String,
+                  text: String,
+                  percent: Int,
+                  running: Boolean,
+                  uri: Uri?
+              ): Notification {
+                  val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+                      .setSmallIcon(android.R.drawable.stat_sys_download)
+                      .setContentTitle(title)
+                      .setContentText(text)
+                      .setOnlyAlertOnce(true)
+                      .setOngoing(running)
+                      .setProgress(100, percent, running && percent <= 0)
+          
+                  if (running) {
+                      val stop = PendingIntent.getService(
+                          this, 1,
+                          Intent(this, DownloadService::class.java).setAction(ACTION_CANCEL),
+                          PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                      )
+                      builder.addAction(0, "Стоп", stop)
+                  }
+          
+                  if (uri != null) {
+                      val open = PendingIntent.getActivity(
+                          this, 2,
+                          Intent(Intent.ACTION_VIEW)
+                              .setDataAndType(uri, contentResolver.getType(uri) ?: "*/*")
+                              .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                          PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                      )
+                      builder.setContentIntent(open)
+                      builder.setAutoCancel(true)
+                  }
+                  return builder.build()
+              }
+          
+              companion object {
+                  const val CHANNEL_ID = "videograb_downloads"
+                  const val NOTIF_ID = 1001
+                  const val PROCESS_ID = "videograb-download"
+                  const val ACTION_CANCEL = "com.kaptolli.videograb.action.CANCEL"
+                  const val EXTRA_URL = "extra_url"
+                  const val EXTRA_SELECTOR = "extra_selector"
+                  const val EXTRA_LABEL = "extra_label"
+                  const val EXTRA_AUDIO_ONLY = "extra_audio_only"
+                  const val EXTRA_AUDIO_FORMAT = "extra_audio_format"
+          
+                  private val SERVICE_TYPE =
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
+          
+                  val state = MutableStateFlow(DlState())
+              }
+          }
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/java/com/kaptolli/videograb/FormatRow.kt')"
+          cat > 'app/src/main/java/com/kaptolli/videograb/FormatRow.kt' <<'__SRC__'
+          package com.kaptolli.videograb
+          
+          import android.view.LayoutInflater
+          import android.view.ViewGroup
+          import androidx.recyclerview.widget.RecyclerView
+          import com.kaptolli.videograb.databinding.ItemFormatBinding
+          
+          data class FormatRow(
+              val title: String,
+              val subtitle: String,
+              val selector: String,
+              val audioOnly: Boolean,
+              val audioFormat: String?
+          )
+          
+          data class Preset(
+              val label: String,
+              val selector: String,
+              val audioOnly: Boolean,
+              val audioFormat: String?
+          )
+          
+          class FormatAdapter(private val onClick: (FormatRow) -> Unit) : RecyclerView.Adapter<FormatAdapter.VH>() {
+          
+              private val items = ArrayList<FormatRow>()
+          
+              fun submit(list: List<FormatRow>) {
+                  items.clear()
+                  items.addAll(list)
+                  notifyDataSetChanged()
+              }
+          
+              class VH(val b: ItemFormatBinding) : RecyclerView.ViewHolder(b.root)
+          
+              override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+                  VH(ItemFormatBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+          
+              override fun getItemCount(): Int = items.size
+          
+              override fun onBindViewHolder(holder: VH, position: Int) {
+                  val row = items[position]
+                  holder.b.tvRowTitle.text = row.title
+                  holder.b.tvRowSub.text = row.subtitle
+                  holder.b.root.setOnClickListener { onClick(row) }
+              }
+          }
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/java/com/kaptolli/videograb/GrabApp.kt')"
+          cat > 'app/src/main/java/com/kaptolli/videograb/GrabApp.kt' <<'__SRC__'
+          package com.kaptolli.videograb
+          
+          import android.app.Application
+          import com.yausername.ffmpeg.FFmpeg
+          import com.yausername.youtubedl_android.YoutubeDL
+          
+          /**
+           * yt-dlp + python + ffmpeg unpack themselves on first launch, that takes a few seconds.
+           * Everything else in the app waits for [ready].
+           */
+          class GrabApp : Application() {
+          
+              override fun onCreate() {
+                  super.onCreate()
+                  Thread {
+                      try {
+                          YoutubeDL.init(this)
+                          FFmpeg.init(this)
+                          markReady()
+                      } catch (t: Throwable) {
+                          markFailed(t.message ?: t.toString())
+                      }
+                  }.apply { name = "ytdlp-init" }.start()
+              }
+          
+              companion object {
+                  @Volatile
+                  var ready: Boolean = false
+                      private set
+          
+                  @Volatile
+                  var error: String? = null
+                      private set
+          
+                  private fun markReady() {
+                      ready = true
+                  }
+          
+                  private fun markFailed(msg: String) {
+                      error = msg
+                  }
+              }
+          }
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/java/com/kaptolli/videograb/MainActivity.kt')"
+          cat > 'app/src/main/java/com/kaptolli/videograb/MainActivity.kt' <<'__SRC__'
+          package com.kaptolli.videograb
+          
+          import android.Manifest
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.os.Build
+          import android.os.Bundle
+          import android.view.View
+          import android.widget.Toast
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.core.content.ContextCompat
+          import androidx.lifecycle.Lifecycle
+          import androidx.lifecycle.lifecycleScope
+          import androidx.lifecycle.repeatOnLifecycle
+          import androidx.recyclerview.widget.LinearLayoutManager
+          import coil.load
+          import com.google.android.material.chip.Chip
+          import com.kaptolli.videograb.databinding.ActivityMainBinding
+          import com.yausername.youtubedl_android.YoutubeDL
+          import com.yausername.youtubedl_android.mapper.VideoFormat
+          import com.yausername.youtubedl_android.mapper.VideoInfo
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.delay
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.util.Locale
+          
+          /** чем качаем видео: только реальные видео-контейнеры, никаких webp/mhtml/превью-мусора */
+          private val VIDEO_EXT = setOf("mp4", "m4v", "webm", "mkv", "mov", "flv", "3gp", "ts", "avi", "ogv")
+          
+          /** что показываем из звука */
+          private val AUDIO_EXT = setOf("m4a", "mp3", "opus", "ogg", "aac", "wav")
+          
+          /** выше этого не показываем — 1080p потолок, как просил */
+          private const val MAX_HEIGHT = 1080
+          
+          private const val SEL_MP4_1080 =
+              "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b[height<=1080]/b"
+          private const val SEL_MP4_1080_MUTE =
+              "bv*[height<=1080][ext=mp4]/bv*[height<=1080]/b[height<=1080]"
+          private const val SEL_MP4_720 =
+              "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b"
+          private const val SEL_MP4_480 =
+              "bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480][ext=mp4]/bv*[height<=480]+ba/b[height<=480]/b"
+          private const val SEL_MP4_360 =
+              "bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360][ext=mp4]/bv*[height<=360]+ba/b[height<=360]/b"
+          
+          class MainActivity : AppCompatActivity() {
+          
+              private lateinit var b: ActivityMainBinding
+              private val adapter = FormatAdapter { row -> startDownload(row) }
+              private var currentUrl: String? = null
+          
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  b = ActivityMainBinding.inflate(layoutInflater)
+                  setContentView(b.root)
+          
+                  b.rvFormats.layoutManager = LinearLayoutManager(this)
+                  b.rvFormats.adapter = adapter
+          
+                  buildPresets()
+                  b.btnFetch.setOnClickListener { fetch(b.etUrl.text.toString()) }
+                  b.btnCancel.setOnClickListener { cancelDownload() }
+                  askNotificationPermission()
+          
+                  lifecycleScope.launch {
+                      repeatOnLifecycle(Lifecycle.State.STARTED) {
+                          DownloadService.state.collect { s ->
+                              b.downloadPanel.visibility =
+                                  if (s.running || s.line.isNotEmpty()) View.VISIBLE else View.GONE
+                              b.pbDownload.progress = s.percent
+                              b.tvDownloadStatus.text = s.line
+                          }
+                      }
+                  }
+          
+                  handleShare(intent)
+              }
+          
+              override fun onNewIntent(intent: Intent) {
+                  super.onNewIntent(intent)
+                  setIntent(intent)
+                  handleShare(intent)
+              }
+          
+              // ---------------------------------------------------------------- поиск
+          
+              private fun fetch(raw: String) {
+                  val url = firstUrl(raw) ?: raw.trim().takeIf { it.startsWith("http") }
+                  if (url.isNullOrBlank()) {
+                      toast("Нужна ссылка http(s)://...")
+                      return
+                  }
+          
+                  currentUrl = url
+                  b.pbFetch.visibility = View.VISIBLE
+                  b.btnFetch.isEnabled = false
+                  b.tvTitle.text = ""
+                  b.tvMeta.text = ""
+                  b.ivThumb.setImageDrawable(null)
+                  adapter.submit(emptyList())
+          
+                  lifecycleScope.launch {
+                      try {
+                          render(fetchInfo(url))
+                      } catch (t: Throwable) {
+                          toast("Не вышло: " + (t.message ?: t.toString()))
+                      } finally {
+                          b.pbFetch.visibility = View.GONE
+                          b.btnFetch.isEnabled = true
+                      }
+                  }
+              }
+          
+              private suspend fun fetchInfo(url: String): VideoInfo {
+                  val deadline = System.currentTimeMillis() + 90_000
+                  while (!GrabApp.ready) {
+                      GrabApp.error?.let { throw IllegalStateException("yt-dlp не поднялся: $it") }
+                      if (System.currentTimeMillis() > deadline) throw IllegalStateException("таймаут инициализации yt-dlp")
+                      delay(250)
+                  }
+                  return withContext(Dispatchers.IO) { YoutubeDL.getInfo(url) }
+              }
+          
+              private fun render(info: VideoInfo) {
+                  b.tvTitle.text = info.title ?: info.fulltitle ?: "(без названия)"
+                  val dur = if (info.duration > 0)
+                      String.format(Locale.US, "%d:%02d", info.duration / 60, info.duration % 60) else null
+                  b.tvMeta.text = listOfNotNull(info.uploader, info.extractor, dur).joinToString(" · ")
+          
+                  val thumb = info.thumbnail ?: info.thumbnails?.lastOrNull()?.url
+                  if (thumb != null) b.ivThumb.load(thumb)
+          
+                  val rows = buildRows(info)
+                  adapter.submit(rows)
+                  b.tvFormatsHeader.text = when {
+                      rows.isNotEmpty() -> "Форматы до 1080p (" + rows.size + ")"
+                      hasNoVideo(info) -> "Тут нет видео — сайт отдал картинку/пост"
+                      else -> "Сайт не отдал форматы — жми пресеты вверху"
+                  }
+              }
+          
+              /** список форматов: только mp4 (по убыванию качества) до 1080p + пара звуковых дорожек */
+              private fun buildRows(info: VideoInfo): List<FormatRow> {
+                  val rows = ArrayList<FormatRow>()
+                  val formats = info.formats ?: ArrayList()
+          
+                  val videos = formats.filter {
+                      it.vcodec != null && it.vcodec != "none" && it.height > 0 && VIDEO_EXT.contains(extOf(it))
+                  }
+          
+                  // mp4 в приоритете; если сайт отдаёт только webm — покажем webm, но с пометкой
+                  val mp4Only = videos.filter { isMp4(it) }
+                  val pool = if (mp4Only.isNotEmpty()) mp4Only else videos
+                  val capped = pool.filter { it.height <= MAX_HEIGHT }
+                  val chosen = if (capped.isNotEmpty()) capped else pool
+          
+                  val seen = HashSet<String>()
+                  for (f in chosen.sortedWith(compareByDescending<VideoFormat> { it.height }.thenByDescending { it.tbr })) {
+                      val id = f.formatId ?: continue
+                      if (!seen.add(f.height.toString() + extOf(f))) continue
+                      rows.add(
+                          FormatRow(
+                              title = resolutionText(f),
+                              subtitle = listOfNotNull(
+                                  if (isMp4(f)) null else extOf(f).uppercase(Locale.US),
+                                  f.vcodec?.substringBefore('.'),
+                                  sizeText(f.fileSize, f.fileSizeApproximate)
+                              ).joinToString(" · ") + "    со звуком, id:" + id,
+                              selector = id + "+ba[ext=m4a]/" + id + "+ba/" + id,
+                              audioOnly = false,
+                              audioFormat = null
+                          )
+                      )
+                      if (rows.size >= 30) break
+                  }
+          
+                  val audios = formats
+                      .filter {
+                          (it.vcodec == null || it.vcodec == "none") &&
+                              it.acodec != null && it.acodec != "none" &&
+                              AUDIO_EXT.contains(extOf(it))
+                      }
+                      .sortedByDescending { it.tbr }
+          
+                  var addedAudio = 0
+                  for (f in audios) {
+                      val id = f.formatId ?: continue
+                      val ext = extOf(f)
+                      if (!seen.add("audio" + ext)) continue
+                      rows.add(
+                          FormatRow(
+                              title = "аудио " + ext.uppercase(Locale.US),
+                              subtitle = listOfNotNull(
+                                  f.acodec?.substringBefore('.'),
+                                  if (f.abr > 0) f.abr.toString() + " kbps" else null,
+                                  sizeText(f.fileSize, f.fileSizeApproximate)
+                              ).joinToString(" · ") + "    id:" + id,
+                              selector = id,
+                              audioOnly = true,
+                              audioFormat = ext
+                          )
+                      )
+                      addedAudio++
+                      if (addedAudio >= 3) break
+                  }
+          
+                  return rows
+              }
+          
+              private fun hasNoVideo(info: VideoInfo): Boolean {
+                  val f = info.formats ?: return false
+                  return f.isEmpty() || f.none { it.ext != null && VIDEO_EXT.contains(extOf(it)) }
+              }
+          
+              private fun extOf(f: VideoFormat): String = f.ext?.lowercase(Locale.US) ?: ""
+          
+              private fun isMp4(f: VideoFormat): Boolean {
+                  val e = extOf(f)
+                  return e == "mp4" || e == "m4v"
+              }
+          
+              private fun resolutionText(f: VideoFormat): String {
+                  val h = if (f.height > 0) f.height.toString() + "p" else (f.formatNote ?: "?")
+                  val fps = if (f.fps > 30) " " + f.fps + "fps" else ""
+                  val container = if (isMp4(f)) "" else " " + extOf(f).uppercase(Locale.US)
+                  return h + fps + container
+              }
+          
+              private fun sizeText(a: Long, b: Long): String? {
+                  val v = maxOf(a, b)
+                  if (v <= 0) return null
+                  return String.format(Locale.US, "%.1f МБ", v / 1048576.0)
+              }
+          
+              // ------------------------------------------------------------- пресеты
+          
+              private fun buildPresets() {
+                  val presets = listOf(
+                      Preset("1080p MP4", SEL_MP4_1080, false, null),
+                      Preset("1080p без звука", SEL_MP4_1080_MUTE, false, null),
+                      Preset("720p MP4", SEL_MP4_720, false, null),
+                      Preset("480p MP4", SEL_MP4_480, false, null),
+                      Preset("360p MP4", SEL_MP4_360, false, null),
+                      Preset("MP3", "ba/b", true, "mp3"),
+                      Preset("M4A", "ba[ext=m4a]/ba", true, "m4a")
+                  )
+          
+                  for (p in presets) {
+                      val chip = Chip(this)
+                      chip.text = p.label
+                      chip.isCheckable = false
+                      chip.setOnClickListener {
+                          startDownload(FormatRow(p.label, "пресет", p.selector, p.audioOnly, p.audioFormat))
+                      }
+                      b.chipRow.addView(chip)
+                  }
+              }
+          
+              // ----------------------------------------------------------- загрузка
+          
+              private fun startDownload(row: FormatRow) {
+                  val url = currentUrl
+                  if (url == null) {
+                      toast("Сначала вставь ссылку и нажми «Найти»")
+                      return
+                  }
+                  if (DownloadService.state.value.running) {
+                      toast("Уже качается — останови текущую загрузку")
+                      return
+                  }
+                  val intent = Intent(this, DownloadService::class.java)
+                      .putExtra(DownloadService.EXTRA_URL, url)
+                      .putExtra(DownloadService.EXTRA_SELECTOR, row.selector)
+                      .putExtra(DownloadService.EXTRA_LABEL, row.title)
+                      .putExtra(DownloadService.EXTRA_AUDIO_ONLY, row.audioOnly)
+                      .putExtra(DownloadService.EXTRA_AUDIO_FORMAT, row.audioFormat)
+                  ContextCompat.startForegroundService(this, intent)
+                  b.downloadPanel.visibility = View.VISIBLE
+                  toast("Погнали: " + row.title)
+              }
+          
+              private fun cancelDownload() {
+                  startService(Intent(this, DownloadService::class.java).setAction(DownloadService.ACTION_CANCEL))
+              }
+          
+              // --------------------------------------------------------------- утиль
+          
+              private fun handleShare(intent: Intent?) {
+                  if (intent == null || intent.action != Intent.ACTION_SEND) return
+                  val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+                  val url = firstUrl(text) ?: return
+                  b.etUrl.setText(url)
+                  fetch(url)
+              }
+          
+              private fun firstUrl(text: String): String? {
+                  val m = Regex("""https?://[^\s"'<>]+""").find(text) ?: return null
+                  return m.value.trimEnd('.', ',', ')', ';', '!', '?')
+              }
+          
+              private fun askNotificationPermission() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                      ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                      PackageManager.PERMISSION_GRANTED
+                  ) {
+                      requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 71)
+                  }
+              }
+          
+              private fun toast(msg: String) {
+                  Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+              }
+          }
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_download.xml')"
+          cat > 'app/src/main/res/drawable/ic_download.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#8A8A8A"
+                  android:pathData="M11,3h2v9.2l3.6,-3.6 1.4,1.4 -6,6 -6,-6 1.4,-1.4 3.6,3.6z" />
+              <path
+                  android:fillColor="#8A8A8A"
+                  android:pathData="M4,18h16v2H4z" />
+          </vector>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_launcher_foreground.xml')"
+          cat > 'app/src/main/res/drawable/ic_launcher_foreground.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#00000000"
+                  android:pathData="M54,26 L54,58"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="7"
+                  android:strokeLineCap="round" />
+              <path
+                  android:fillColor="#00000000"
+                  android:pathData="M40,46 L54,60 L68,46"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="7"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M34,68 L74,68 L74,76 L34,76 Z" />
+          </vector>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/layout/activity_main.xml')"
+          cat > 'app/src/main/res/layout/activity_main.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:padding="12dp">
+          
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:gravity="center_vertical"
+                  android:orientation="horizontal">
+          
+                  <EditText
+                      android:id="@+id/etUrl"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:hint="@string/url_hint"
+                      android:imeOptions="actionGo"
+                      android:inputType="textUri"
+                      android:maxLines="1" />
+          
+                  <Button
+                      android:id="@+id/btnFetch"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_marginStart="8dp"
+                      android:text="@string/find" />
+              </LinearLayout>
+          
+              <ProgressBar
+                  android:id="@+id/pbFetch"
+                  style="?android:attr/progressBarStyleHorizontal"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:indeterminate="true"
+                  android:visibility="gone" />
+          
+              <HorizontalScrollView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:scrollbars="none">
+          
+                  <LinearLayout
+                      android:id="@+id/chipRow"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:orientation="horizontal"
+                      android:paddingTop="4dp"
+                      android:paddingBottom="4dp" />
+              </HorizontalScrollView>
+          
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_marginTop="4dp"
+                  android:orientation="horizontal">
+          
+                  <ImageView
+                      android:id="@+id/ivThumb"
+                      android:layout_width="132dp"
+                      android:layout_height="76dp"
+                      android:background="#22000000"
+                      android:contentDescription="@string/preview"
+                      android:scaleType="centerCrop" />
+          
+                  <LinearLayout
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_marginStart="8dp"
+                      android:layout_weight="1"
+                      android:orientation="vertical">
+          
+                      <TextView
+                          android:id="@+id/tvTitle"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:maxLines="3"
+                          android:textSize="14sp"
+                          android:textStyle="bold" />
+          
+                      <TextView
+                          android:id="@+id/tvMeta"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:textSize="12sp" />
+                  </LinearLayout>
+              </LinearLayout>
+          
+              <TextView
+                  android:id="@+id/tvFormatsHeader"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_marginTop="8dp"
+                  android:text="@string/all_formats"
+                  android:textSize="12sp" />
+          
+              <androidx.recyclerview.widget.RecyclerView
+                  android:id="@+id/rvFormats"
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1"
+                  android:clipToPadding="false" />
+          
+              <LinearLayout
+                  android:id="@+id/downloadPanel"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:visibility="gone">
+          
+                  <TextView
+                      android:id="@+id/tvDownloadStatus"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:maxLines="2"
+                      android:textSize="12sp" />
+          
+                  <ProgressBar
+                      android:id="@+id/pbDownload"
+                      style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:max="100" />
+          
+                  <Button
+                      android:id="@+id/btnCancel"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="end"
+                      android:text="@string/stop" />
+              </LinearLayout>
+          </LinearLayout>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/layout/item_format.xml')"
+          cat > 'app/src/main/res/layout/item_format.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:background="?attr/selectableItemBackground"
+              android:clickable="true"
+              android:focusable="true"
+              android:orientation="horizontal"
+              android:paddingTop="10dp"
+              android:paddingBottom="10dp">
+          
+              <ImageView
+                  android:layout_width="24dp"
+                  android:layout_height="24dp"
+                  android:layout_gravity="center_vertical"
+                  android:contentDescription="@string/download"
+                  android:src="@drawable/ic_download" />
+          
+              <LinearLayout
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_marginStart="12dp"
+                  android:layout_weight="1"
+                  android:orientation="vertical">
+          
+                  <TextView
+                      android:id="@+id/tvRowTitle"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:textSize="15sp"
+                      android:textStyle="bold" />
+          
+                  <TextView
+                      android:id="@+id/tvRowSub"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:maxLines="2"
+                      android:textSize="11sp" />
+              </LinearLayout>
+          </LinearLayout>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml')"
+          cat > 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/values/colors.xml')"
+          cat > 'app/src/main/res/values/colors.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#101418</color>
+              <color name="accent">#FF3B49</color>
+          </resources>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/values/strings.xml')"
+          cat > 'app/src/main/res/values/strings.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">VideoGrab</string>
+              <string name="url_hint">Ссылка на видео</string>
+              <string name="find">Найти</string>
+              <string name="all_formats">Все форматы</string>
+              <string name="preview">Превью</string>
+              <string name="stop">Стоп</string>
+              <string name="download">Скачать</string>
+          </resources>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/values/themes.xml')"
+          cat > 'app/src/main/res/values/themes.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.VideoGrab" parent="Theme.Material3.DayNight.NoActionBar">
+                  <item name="colorPrimary">@color/accent</item>
+              </style>
+          </resources>
+          __SRC__
+          mkdir -p "$(dirname 'build.gradle')"
+          cat > 'build.gradle' <<'__SRC__'
+          // VideoGrab - root build script
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+          }
+          __SRC__
+          mkdir -p "$(dirname 'gradle.properties')"
+          cat > 'gradle.properties' <<'__SRC__'
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          kotlin.code.style=official
+          __SRC__
+          mkdir -p "$(dirname 'settings.gradle')"
+          cat > 'settings.gradle' <<'__SRC__'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          rootProject.name = "VideoGrab"
+          include ':app'
+          __SRC__
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build debug apk
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Show apk
+        run: ls -la app/build/outputs/apk/debug/
+
+      - name: Upload apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoGrab-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: VideoGrab build ${{ github.run_number }}
+          files: app/build/outputs/apk/debug/*.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit sources back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "ci: materialize project sources"
+          git push

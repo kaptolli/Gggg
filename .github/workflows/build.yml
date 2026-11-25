@@ -905,6 +905,32 @@ jobs:
               }
           }
           __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/drawable/bg_logo.xml')"
+          cat > 'app/src/main/res/drawable/bg_logo.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <corners android:radius="14dp" />
+              <solid android:color="?attr/colorPrimaryContainer" />
+          </shape>
+          __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_arrow.xml')"
+          cat > 'app/src/main/res/drawable/ic_arrow.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#00000000"
+                  android:pathData="M9,6 L15,12 L9,18"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="2"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round" />
+          </vector>
+          __SRC__
           mkdir -p "$(dirname 'app/src/main/res/drawable/ic_download.xml')"
           cat > 'app/src/main/res/drawable/ic_download.xml' <<'__SRC__'
           <?xml version="1.0" encoding="utf-8"?>
@@ -914,11 +940,21 @@ jobs:
               android:viewportWidth="24"
               android:viewportHeight="24">
               <path
-                  android:fillColor="#8A8A8A"
-                  android:pathData="M11,3h2v9.2l3.6,-3.6 1.4,1.4 -6,6 -6,-6 1.4,-1.4 3.6,3.6z" />
+                  android:fillColor="#00000000"
+                  android:pathData="M12,3 L12,14"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="2.2"
+                  android:strokeLineCap="round" />
               <path
-                  android:fillColor="#8A8A8A"
-                  android:pathData="M4,18h16v2H4z" />
+                  android:fillColor="#00000000"
+                  android:pathData="M7,10 L12,15 L17,10"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="2.2"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M5,18 L19,18 L19,20.5 L5,20.5 Z" />
           </vector>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/drawable/ic_launcher_foreground.xml')"
@@ -947,185 +983,340 @@ jobs:
                   android:pathData="M34,68 L74,68 L74,76 L34,76 Z" />
           </vector>
           __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_logo.xml')"
+          cat > 'app/src/main/res/drawable/ic_logo.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#00000000"
+                  android:pathData="M12,4 L12,13"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="2.4"
+                  android:strokeLineCap="round" />
+              <path
+                  android:fillColor="#00000000"
+                  android:pathData="M7.5,9.5 L12,14 L16.5,9.5"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="2.4"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M6,17 L18,17 L18,19.4 L6,19.4 Z" />
+          </vector>
+          __SRC__
           mkdir -p "$(dirname 'app/src/main/res/layout/activity_main.xml')"
           cat > 'app/src/main/res/layout/activity_main.xml' <<'__SRC__'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
-              android:padding="12dp">
+              android:paddingStart="16dp"
+              android:paddingTop="14dp"
+              android:paddingEnd="16dp"
+              android:paddingBottom="10dp">
           
+              <!-- шапка -->
               <LinearLayout
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
                   android:gravity="center_vertical"
                   android:orientation="horizontal">
           
-                  <EditText
-                      android:id="@+id/etUrl"
+                  <ImageView
+                      android:layout_width="46dp"
+                      android:layout_height="46dp"
+                      android:background="@drawable/bg_logo"
+                      android:contentDescription="@string/app_name"
+                      android:padding="11dp"
+                      android:src="@drawable/ic_logo"
+                      android:tint="?attr/colorPrimary" />
+          
+                  <LinearLayout
                       android:layout_width="0dp"
                       android:layout_height="wrap_content"
+                      android:layout_marginStart="12dp"
                       android:layout_weight="1"
-                      android:hint="@string/url_hint"
-                      android:imeOptions="actionGo"
-                      android:inputType="textUri"
-                      android:maxLines="1" />
+                      android:orientation="vertical">
           
-                  <Button
-                      android:id="@+id/btnFetch"
-                      android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:layout_marginStart="8dp"
-                      android:text="@string/find" />
+                      <TextView
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="@string/app_name"
+                          android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                          android:textStyle="bold" />
+          
+                      <TextView
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:alpha="0.65"
+                          android:text="@string/tagline"
+                          android:textAppearance="?attr/textAppearanceBodySmall" />
+                  </LinearLayout>
               </LinearLayout>
           
-              <ProgressBar
-                  android:id="@+id/pbFetch"
-                  style="?android:attr/progressBarStyleHorizontal"
+              <!-- ввод ссылки -->
+              <com.google.android.material.card.MaterialCardView
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:indeterminate="true"
-                  android:visibility="gone" />
+                  android:layout_marginTop="14dp"
+                  app:cardCornerRadius="22dp"
+                  app:cardElevation="0dp"
+                  app:strokeColor="?attr/colorOutlineVariant"
+                  app:strokeWidth="1dp">
+          
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:padding="14dp">
+          
+                      <com.google.android.material.textfield.TextInputLayout
+                          style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:hint="@string/url_hint">
+          
+                          <com.google.android.material.textfield.TextInputEditText
+                              android:id="@+id/etUrl"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:imeOptions="actionGo"
+                              android:inputType="textUri"
+                              android:maxLines="1" />
+                      </com.google.android.material.textfield.TextInputLayout>
+          
+                      <Button
+                          android:id="@+id/btnFetch"
+                          android:layout_width="match_parent"
+                          android:layout_height="52dp"
+                          android:layout_marginTop="12dp"
+                          android:text="@string/find"
+                          android:textSize="15sp" />
+          
+                      <com.google.android.material.progressindicator.LinearProgressIndicator
+                          android:id="@+id/pbFetch"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="12dp"
+                          android:indeterminate="true"
+                          android:visibility="gone"
+                          app:trackCornerRadius="4dp" />
+                  </LinearLayout>
+              </com.google.android.material.card.MaterialCardView>
+          
+              <!-- популярные форматы -->
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_marginTop="16dp"
+                  android:alpha="0.75"
+                  android:text="@string/popular_formats"
+                  android:textAppearance="?attr/textAppearanceTitleSmall" />
           
               <HorizontalScrollView
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
+                  android:layout_marginTop="8dp"
+                  android:clipToPadding="false"
                   android:scrollbars="none">
           
                   <LinearLayout
                       android:id="@+id/chipRow"
                       android:layout_width="wrap_content"
                       android:layout_height="wrap_content"
-                      android:orientation="horizontal"
-                      android:paddingTop="4dp"
-                      android:paddingBottom="4dp" />
+                      android:orientation="horizontal" />
               </HorizontalScrollView>
           
-              <LinearLayout
+              <!-- превью -->
+              <com.google.android.material.card.MaterialCardView
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:layout_marginTop="4dp"
-                  android:orientation="horizontal">
-          
-                  <ImageView
-                      android:id="@+id/ivThumb"
-                      android:layout_width="132dp"
-                      android:layout_height="76dp"
-                      android:background="#22000000"
-                      android:contentDescription="@string/preview"
-                      android:scaleType="centerCrop" />
+                  android:layout_marginTop="14dp"
+                  app:cardCornerRadius="22dp"
+                  app:cardElevation="0dp"
+                  app:strokeColor="?attr/colorOutlineVariant"
+                  app:strokeWidth="1dp">
           
                   <LinearLayout
-                      android:layout_width="0dp"
+                      android:layout_width="match_parent"
                       android:layout_height="wrap_content"
-                      android:layout_marginStart="8dp"
-                      android:layout_weight="1"
-                      android:orientation="vertical">
+                      android:gravity="center_vertical"
+                      android:orientation="horizontal"
+                      android:padding="12dp">
           
-                      <TextView
-                          android:id="@+id/tvTitle"
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:maxLines="3"
-                          android:textSize="14sp"
-                          android:textStyle="bold" />
+                      <com.google.android.material.imageview.ShapeableImageView
+                          android:id="@+id/ivThumb"
+                          android:layout_width="136dp"
+                          android:layout_height="78dp"
+                          android:background="?attr/colorSurfaceVariant"
+                          android:contentDescription="@string/preview"
+                          android:scaleType="centerCrop"
+                          app:shapeAppearanceOverlay="@style/ShapeAppearance.VideoGrab.Thumb" />
           
-                      <TextView
-                          android:id="@+id/tvMeta"
-                          android:layout_width="match_parent"
+                      <LinearLayout
+                          android:layout_width="0dp"
                           android:layout_height="wrap_content"
-                          android:textSize="12sp" />
+                          android:layout_marginStart="12dp"
+                          android:layout_weight="1"
+                          android:orientation="vertical">
+          
+                          <TextView
+                              android:id="@+id/tvTitle"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:ellipsize="end"
+                              android:maxLines="3"
+                              android:textAppearance="?attr/textAppearanceTitleMedium" />
+          
+                          <TextView
+                              android:id="@+id/tvMeta"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:layout_marginTop="4dp"
+                              android:alpha="0.65"
+                              android:textAppearance="?attr/textAppearanceBodySmall" />
+                      </LinearLayout>
                   </LinearLayout>
-              </LinearLayout>
+              </com.google.android.material.card.MaterialCardView>
           
+              <!-- список форматов -->
               <TextView
                   android:id="@+id/tvFormatsHeader"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:layout_marginTop="8dp"
+                  android:layout_marginTop="16dp"
+                  android:alpha="0.75"
                   android:text="@string/all_formats"
-                  android:textSize="12sp" />
+                  android:textAppearance="?attr/textAppearanceTitleSmall" />
           
               <androidx.recyclerview.widget.RecyclerView
                   android:id="@+id/rvFormats"
                   android:layout_width="match_parent"
                   android:layout_height="0dp"
+                  android:layout_marginTop="8dp"
                   android:layout_weight="1"
-                  android:clipToPadding="false" />
+                  android:clipToPadding="false"
+                  android:paddingBottom="8dp"
+                  android:scrollbars="none" />
           
-              <LinearLayout
+              <!-- прогресс загрузки -->
+              <com.google.android.material.card.MaterialCardView
                   android:id="@+id/downloadPanel"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:orientation="vertical"
-                  android:visibility="gone">
+                  android:layout_marginTop="8dp"
+                  android:visibility="gone"
+                  app:cardCornerRadius="22dp"
+                  app:cardElevation="0dp"
+                  app:strokeColor="?attr/colorOutlineVariant"
+                  app:strokeWidth="1dp">
           
-                  <TextView
-                      android:id="@+id/tvDownloadStatus"
+                  <LinearLayout
                       android:layout_width="match_parent"
                       android:layout_height="wrap_content"
-                      android:maxLines="2"
-                      android:textSize="12sp" />
+                      android:orientation="vertical"
+                      android:padding="14dp">
           
-                  <ProgressBar
-                      android:id="@+id/pbDownload"
-                      style="?android:attr/progressBarStyleHorizontal"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:max="100" />
+                      <TextView
+                          android:id="@+id/tvDownloadStatus"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:maxLines="2"
+                          android:textAppearance="?attr/textAppearanceBodySmall" />
           
-                  <Button
-                      android:id="@+id/btnCancel"
-                      android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:layout_gravity="end"
-                      android:text="@string/stop" />
-              </LinearLayout>
+                      <com.google.android.material.progressindicator.LinearProgressIndicator
+                          android:id="@+id/pbDownload"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="10dp"
+                          android:max="100"
+                          app:trackCornerRadius="4dp" />
+          
+                      <Button
+                          android:id="@+id/btnCancel"
+                          style="@style/Widget.Material3.Button.TextButton"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:layout_gravity="end"
+                          android:layout_marginTop="4dp"
+                          android:text="@string/stop" />
+                  </LinearLayout>
+              </com.google.android.material.card.MaterialCardView>
           </LinearLayout>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/layout/item_format.xml')"
           cat > 'app/src/main/res/layout/item_format.xml' <<'__SRC__'
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+          <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:background="?attr/selectableItemBackground"
+              android:layout_marginBottom="8dp"
               android:clickable="true"
               android:focusable="true"
-              android:orientation="horizontal"
-              android:paddingTop="10dp"
-              android:paddingBottom="10dp">
-          
-              <ImageView
-                  android:layout_width="24dp"
-                  android:layout_height="24dp"
-                  android:layout_gravity="center_vertical"
-                  android:contentDescription="@string/download"
-                  android:src="@drawable/ic_download" />
+              android:foreground="?attr/selectableItemBackground"
+              app:cardCornerRadius="18dp"
+              app:cardElevation="0dp"
+              app:strokeColor="?attr/colorOutlineVariant"
+              app:strokeWidth="1dp">
           
               <LinearLayout
-                  android:layout_width="0dp"
+                  android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:layout_marginStart="12dp"
-                  android:layout_weight="1"
-                  android:orientation="vertical">
+                  android:gravity="center_vertical"
+                  android:orientation="horizontal"
+                  android:paddingStart="14dp"
+                  android:paddingTop="12dp"
+                  android:paddingEnd="10dp"
+                  android:paddingBottom="12dp">
           
-                  <TextView
-                      android:id="@+id/tvRowTitle"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:textSize="15sp"
-                      android:textStyle="bold" />
+                  <ImageView
+                      android:layout_width="22dp"
+                      android:layout_height="22dp"
+                      android:contentDescription="@string/download"
+                      android:src="@drawable/ic_download"
+                      android:tint="?attr/colorPrimary" />
           
-                  <TextView
-                      android:id="@+id/tvRowSub"
-                      android:layout_width="match_parent"
+                  <LinearLayout
+                      android:layout_width="0dp"
                       android:layout_height="wrap_content"
-                      android:maxLines="2"
-                      android:textSize="11sp" />
+                      android:layout_marginStart="12dp"
+                      android:layout_weight="1"
+                      android:orientation="vertical">
+          
+                      <TextView
+                          android:id="@+id/tvRowTitle"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:maxLines="1"
+                          android:textAppearance="?attr/textAppearanceTitleSmall" />
+          
+                      <TextView
+                          android:id="@+id/tvRowSub"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="2dp"
+                          android:alpha="0.6"
+                          android:maxLines="2"
+                          android:textAppearance="?attr/textAppearanceBodySmall" />
+                  </LinearLayout>
+          
+                  <ImageView
+                      android:layout_width="20dp"
+                      android:layout_height="20dp"
+                      android:alpha="0.45"
+                      android:contentDescription="@string/download"
+                      android:src="@drawable/ic_arrow"
+                      android:tint="?attr/colorOnSurface" />
               </LinearLayout>
-          </LinearLayout>
+          </com.google.android.material.card.MaterialCardView>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml')"
           cat > 'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml' <<'__SRC__'
@@ -1135,12 +1326,27 @@ jobs:
               <foreground android:drawable="@drawable/ic_launcher_foreground" />
           </adaptive-icon>
           __SRC__
+          mkdir -p "$(dirname 'app/src/main/res/values-night/colors.xml')"
+          cat > 'app/src/main/res/values-night/colors.xml' <<'__SRC__'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="brand">#FF7A8A</color>
+              <color name="brand_on">#3A0A12</color>
+              <color name="brand_container">#5B1622</color>
+              <color name="brand_on_container">#FFE2E6</color>
+          </resources>
+          __SRC__
           mkdir -p "$(dirname 'app/src/main/res/values/colors.xml')"
           cat > 'app/src/main/res/values/colors.xml' <<'__SRC__'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
+              <color name="brand">#F0334A</color>
+              <color name="brand_on">#FFFFFF</color>
+              <color name="brand_container">#FFE2E6</color>
+              <color name="brand_on_container">#3A0A12</color>
+          
               <color name="ic_launcher_background">#101418</color>
-              <color name="accent">#FF3B49</color>
+              <color name="accent">#F0334A</color>
           </resources>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/values/strings.xml')"
@@ -1148,20 +1354,33 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="app_name">VideoGrab</string>
+              <string name="tagline">ссылка → превью → 1080p в один тап</string>
               <string name="url_hint">Ссылка на видео</string>
-              <string name="find">Найти</string>
+              <string name="find">Найти видео</string>
+              <string name="popular_formats">Популярные форматы</string>
               <string name="all_formats">Все форматы</string>
               <string name="preview">Превью</string>
-              <string name="stop">Стоп</string>
+              <string name="stop">Остановить</string>
               <string name="download">Скачать</string>
           </resources>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/values/themes.xml')"
           cat > 'app/src/main/res/values/themes.xml' <<'__SRC__'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
+          <resources xmlns:tools="http://schemas.android.com/tools">
+          
               <style name="Theme.VideoGrab" parent="Theme.Material3.DayNight.NoActionBar">
-                  <item name="colorPrimary">@color/accent</item>
+                  <item name="colorPrimary">@color/brand</item>
+                  <item name="colorOnPrimary">@color/brand_on</item>
+                  <item name="colorPrimaryContainer">@color/brand_container</item>
+                  <item name="colorOnPrimaryContainer">@color/brand_on_container</item>
+                  <item name="colorSecondary">@color/brand</item>
+                  <item name="android:windowBackground">?attr/colorSurface</item>
+              </style>
+          
+              <style name="ShapeAppearance.VideoGrab.Thumb" parent="">
+                  <item name="cornerFamily">rounded</item>
+                  <item name="cornerSize">14dp</item>
               </style>
           </resources>
           __SRC__

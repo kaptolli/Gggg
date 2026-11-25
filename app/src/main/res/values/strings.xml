@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VideoGrab</string>
+    <string name="tagline">ссылка → превью → 1080p в один тап</string>
     <string name="url_hint">Ссылка на видео</string>
-    <string name="find">Найти</string>
+    <string name="find">Найти видео</string>
+    <string name="popular_formats">Популярные форматы</string>
     <string name="all_formats">Все форматы</string>
     <string name="preview">Превью</string>
-    <string name="stop">Стоп</string>
+    <string name="stop">Остановить</string>
     <string name="download">Скачать</string>
 </resources>

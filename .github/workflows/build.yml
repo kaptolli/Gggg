@@ -49,6 +49,8 @@ jobs:
           - Готовый файл попадает в `/sdcard/Download/VideoGrab/` (через MediaStore, разрешения на память не нужны).
           - Поделился ссылкой (YouTube, браузер, телега, галерея) в VideoGrab — загрузка **1080p MP4 стартует сама**,
             превью и список форматов при этом показываются, можно переключиться на другой.
+          - **yt-dlp обновляется сам**: раз в сутки тянет свежий бинарь с GitHub, версия видна в шапке,
+            рядом кнопка «Обновить» — иначе площадки ломают старую сборку.
           
           ## Сборка
           Локальный тулчейн не нужен, APK собирает GitHub Actions (`.github/workflows/build.yml`):
@@ -525,12 +527,16 @@ jobs:
           package com.kaptolli.videograb
           
           import android.app.Application
+          import android.content.Context
           import com.yausername.ffmpeg.FFmpeg
           import com.yausername.youtubedl_android.YoutubeDL
           
           /**
-           * yt-dlp + python + ffmpeg unpack themselves on first launch, that takes a few seconds.
-           * Everything else in the app waits for [ready].
+           * yt-dlp + python + ffmpeg распаковываются при первом запуске (несколько секунд),
+           * всё остальное в приложении ждёт [ready].
+           *
+           * yt-dlp в библиотеке — сборка с её релиза, поэтому раз в сутки тянем свежий бинарь
+           * с GitHub: площадки ломают старые версии постоянно (и yt-dlp сам ворчит, что старше 90 дней).
            */
           class GrabApp : Application() {
           
@@ -540,7 +546,9 @@ jobs:
                       try {
                           YoutubeDL.init(this)
                           FFmpeg.init(this)
+                          refreshVersion(this)
                           markReady()
+                          maybeAutoUpdate(this)
                       } catch (t: Throwable) {
                           markFailed(t.message ?: t.toString())
                       }
@@ -548,6 +556,10 @@ jobs:
               }
           
               companion object {
+                  private const val PREFS = "grab"
+                  private const val KEY_LAST_UPDATE = "last_ytdlp_update"
+                  private const val DAY_MS = 24L * 60 * 60 * 1000
+          
                   @Volatile
                   var ready: Boolean = false
                       private set
@@ -556,12 +568,56 @@ jobs:
                   var error: String? = null
                       private set
           
+                  /** версия yt-dlp (тег релиза), null пока ни разу не обновлялись */
+                  @Volatile
+                  var ytdlpVersion: String? = null
+                      private set
+          
                   private fun markReady() {
                       ready = true
                   }
           
                   private fun markFailed(msg: String) {
                       error = msg
+                  }
+          
+                  fun refreshVersion(context: Context) {
+                      ytdlpVersion = try {
+                          YoutubeDL.version(context)
+                      } catch (t: Throwable) {
+                          null
+                      }
+                  }
+          
+                  /** раз в сутки, тихо, без права на ошибку: нет сети — попробуем в следующий запуск */
+                  private fun maybeAutoUpdate(context: Context) {
+                      val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                      if (System.currentTimeMillis() - prefs.getLong(KEY_LAST_UPDATE, 0L) < DAY_MS) return
+                      try {
+                          YoutubeDL.updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
+                          refreshVersion(context)
+                          prefs.edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
+                      } catch (t: Throwable) {
+                          // молча: пригодится позже, кнопкой «Обновить»
+                      }
+                  }
+          
+                  /** ручное обновление, возвращает текст для тоста */
+                  fun updateNow(context: Context): String {
+                      return try {
+                          val status = YoutubeDL.updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
+                          refreshVersion(context)
+                          context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                              .edit().putLong(KEY_LAST_UPDATE, System.currentTimeMillis()).apply()
+                          val v = ytdlpVersion ?: "?"
+                          when (status) {
+                              YoutubeDL.UpdateStatus.DONE -> "yt-dlp обновлён: $v"
+                              YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "yt-dlp уже свежий: $v"
+                              else -> "yt-dlp: $v"
+                          }
+                      } catch (t: Throwable) {
+                          "не вышло обновить: " + (t.message ?: t.toString())
+                      }
                   }
               }
           }
@@ -632,6 +688,8 @@ jobs:
                   buildPresets()
                   b.btnFetch.setOnClickListener { fetch(b.etUrl.text.toString()) }
                   b.btnCancel.setOnClickListener { cancelDownload() }
+                  b.btnUpdate.setOnClickListener { updateYtdlp() }
+                  updateVersionLabel()
                   askNotificationPermission()
           
                   lifecycleScope.launch {
@@ -901,6 +959,20 @@ jobs:
                   }
               }
           
+              private fun updateYtdlp() {
+                  toast("Проверяю yt-dlp...")
+                  lifecycleScope.launch {
+                      val msg = withContext(Dispatchers.IO) { GrabApp.updateNow(this@MainActivity) }
+                      updateVersionLabel()
+                      toast(msg)
+                  }
+              }
+          
+              private fun updateVersionLabel() {
+                  val v = GrabApp.ytdlpVersion
+                  b.tvYtdlp.text = if (v.isNullOrBlank()) "yt-dlp: из сборки" else "yt-dlp " + v
+              }
+          
               private fun toast(msg: String) {
                   Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
               }
@@ -1059,9 +1131,25 @@ jobs:
                           android:alpha="0.65"
                           android:text="@string/tagline"
                           android:textAppearance="?attr/textAppearanceBodySmall" />
-                  </LinearLayout>
-              </LinearLayout>
           
+                      <TextView
+                          android:id="@+id/tvYtdlp"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:alpha="0.5"
+                          android:ellipsize="end"
+                          android:maxLines="1"
+                          android:textAppearance="?attr/textAppearanceLabelSmall" />
+                  </LinearLayout>
+          
+                  <Button
+                      android:id="@+id/btnUpdate"
+                      style="@style/Widget.Material3.Button.TextButton"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:minWidth="0dp"
+                      android:text="@string/update_ytdlp" />
+              </LinearLayout>
               <!-- ввод ссылки -->
               <com.google.android.material.card.MaterialCardView
                   android:layout_width="match_parent"
@@ -1363,6 +1451,7 @@ jobs:
               <string name="preview">Превью</string>
               <string name="stop">Остановить</string>
               <string name="download">Скачать</string>
+              <string name="update_ytdlp">Обновить</string>
           </resources>
           __SRC__
           mkdir -p "$(dirname 'app/src/main/res/values/themes.xml')"

@@ -1185,8 +1185,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Android SDK (предустановлен на раннере)
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "sdk dir: $SDK"
+          ls "$SDK/platforms" || true
+          if [ ! -d "$SDK/platforms/android-34" ]; then
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" || true
+          fi
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

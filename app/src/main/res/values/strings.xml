@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VideoGrab</string>
+    <string name="url_hint">Ссылка на видео</string>
+    <string name="find">Найти</string>
+    <string name="all_formats">Все форматы</string>
+    <string name="preview">Превью</string>
+    <string name="stop">Стоп</string>
+    <string name="download">Скачать</string>
+</resources>
